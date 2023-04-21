@@ -308,58 +308,60 @@ USE ESTATEAGENCY; -- Make sure the data is going into the database
 -- ADD CHECK(  TIME(timeslot) >= '08:00:00' AND TIME(timeslot) <= '17:00:00');
 
 -- Stored Procedure for booking a viewing
--- DELIMITER //
--- DROP PROCEDURE book_viewing;
--- CREATE PROCEDURE book_viewing(
---   IN p_property_id INT,
---   IN p_buyer_id INT,
---   IN p_time_slot DATETIME
--- )
--- BEGIN
---   -- Check if the property is still available for sale
---   DECLARE property_stat ENUM('FOR SALE', 'SOLD', 'WITHDRAWN'); 
---   DECLARE v_buyer_registered INT;
---   DECLARE v_slot_count INT;
---   DECLARE v_agent_id INT;
+DELIMITER //
+DROP PROCEDURE book_viewing;
+CREATE PROCEDURE book_viewing(
+  IN p_property_id INT,
+  IN p_buyer_id INT,
+  IN p_time_slot DATETIME
+)
+BEGIN
+  -- Check if the property is still available for sale
+  DECLARE property_stat ENUM('FOR SALE', 'SOLD', 'WITHDRAWN'); 
+  DECLARE v_buyer_registered INT;
+  DECLARE v_slot_count INT;
+  DECLARE v_agent_id INT;
 
---   SELECT property_status INTO property_stat FROM properties WHERE property_ID = p_property_id;
---   IF property_stat = 'SOLD' THEN
---     SIGNAL SQLSTATE '40600' SET MESSAGE_TEXT = 'Property has been sold';
---     ELSEIF property_stat = 'WITHDRAWN' THEN
---     SIGNAL SQLSTATE '40600' SET MESSAGE_TEXT = 'Property has been withdrawn';
---   END IF;
+  SELECT property_status INTO property_stat FROM properties WHERE property_ID = p_property_id;
+  IF property_stat = 'SOLD' THEN
+    SIGNAL SQLSTATE '40600' SET MESSAGE_TEXT = 'Property has been sold';
+    ELSEIF property_stat = 'WITHDRAWN' THEN
+    SIGNAL SQLSTATE '40600' SET MESSAGE_TEXT = 'Property has been withdrawn';
+  END IF;
 
---   -- Check if the buyer is registered
---   SELECT count(*) INTO v_buyer_registered FROM buyers WHERE buyer_id = p_buyer_id;
---   IF v_buyer_registered = 0 THEN
---     SIGNAL SQLSTATE '40600' SET MESSAGE_TEXT = 'Buyer is not registered';
---   END IF;
+  -- Check if the buyer is registered
+  SELECT count(*) INTO v_buyer_registered FROM buyers WHERE buyer_id = p_buyer_id;
+  IF v_buyer_registered = 0 THEN
+    SIGNAL SQLSTATE '40600' SET MESSAGE_TEXT = 'Buyer is not registered';
+  END IF;
 
---   -- Check if the time slot is available
---   SELECT COUNT(*) INTO v_slot_count FROM bookings WHERE property_id_fk = p_property_id AND timeslot = p_time_slot;
---   IF v_slot_count > 0 THEN
---     SIGNAL SQLSTATE '40600' SET MESSAGE_TEXT = 'Time slot not available';
---   END IF;
+  -- Check if the time slot is available
+  SELECT COUNT(*) INTO v_slot_count FROM bookings WHERE property_id_fk = p_property_id AND timeslot = p_time_slot;
+  IF v_slot_count > 0 THEN
+    SIGNAL SQLSTATE '40600' SET MESSAGE_TEXT = 'Time slot not available';
+  END IF;
 
---   -- Check if there is an available agent - list all the agents that are not booked at that timeslot
--- SELECT distinct(agent_id) into v_agent_id
--- FROM agents a
--- LEFT JOIN bookings b ON a.agent_id = b.agent_id_fk AND b.timeslot = '2023-05-04 10:00:00.000' AND b.property_id_fk = 9
--- WHERE b.agent_id_FK IS NULl limit 1;
+  -- Check if there is an available agent - list all the agents that are not booked at that timeslot
+  SELECT agent_id INTO v_agent_id
+  FROM agents
+  WHERE agent_id NOT IN (
+    SELECT agent_id_fk FROM bookings WHERE timeslot = p_time_slot AND property_id_fk != p_property_id
+  )
+  LIMIT 1;
 
--- IF v_agent_id IS NULL THEN 
+IF v_agent_id IS NULL THEN 
 
---     SIGNAL SQLSTATE '40600' SET MESSAGE_TEXT = 'No available agent';
---     ELSE 
---       INSERT INTO bookings (buyer_id_fk, property_id_fk, agent_id_fk, timeslot) VALUES (p_buyer_id, p_property_id, v_agent_id, p_time_slot);
+    SIGNAL SQLSTATE '40600' SET MESSAGE_TEXT = 'No available agent';
+    ELSE 
+      INSERT INTO bookings (buyer_id_fk, property_id_fk, agent_id_fk, timeslot) VALUES (p_buyer_id, p_property_id, v_agent_id, p_time_slot);
 
---   END IF;
---   
--- END;
--- //
--- DELIMITER ;
+  END IF;
+  
+END;
+//
+DELIMITER ;
 
--- CALL book_viewing(7, 15, '2023-05-04 11:00:00.000');
+CALL book_viewing(7, 15, '2023-05-06 13:00:00.000');
 
 -- 9: Register Buyer: Insert a new row into the Buyer table with the buyer details.
 
